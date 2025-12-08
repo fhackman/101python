@@ -1,0 +1,35 @@
+{
+    "SYMBOL": "XAUUSD.m",
+    "TIMEFRAME": 16388,
+    "VOLUME": 0.01,
+    "POLL_INTERVAL": 300,
+    "SEQ_LENGTH": 100,
+    "MODEL_PATH": "superpoint_transformer.pth",
+    "RISK_PARAMS": {
+        "max_drawdown": 0.05,
+        "stop_loss": 0.01,
+        "take_profit": 0.02
+    },
+    "MANUAL_PARAMS": {
+        "volume": 0.01,
+        "tp_points": 1000,
+        "sl_points": 200
+    },
+    "MODEL_PARAMS": {
+        "d_model": 64,
+        "nhead": 4,
+        "num_layers": 2
+    },
+    "FEATURES": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "tick_volume",
+        "returns",
+        "volatility",
+        "rsi",
+        "volume_ma",
+        "volume_change"
+    ]
+}

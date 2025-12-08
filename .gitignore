@@ -1,0 +1,51 @@
+# Buildozer artifacts
+.buildozer/
+bin/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+trading_env/
+venv/
+.venv/
+
+# Large binary files
+*.zip
+*.tar.gz
+*.exe
+*.dll
+*.pth
+*.pkl
+*.wav
+*.mp3
+*.mid
+*.ex5
+output.txt
+ndk.zip
+openjdk.tar.gz
+
+# Logs
+*.log
+*.csv
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rust build artifacts
+supertrade_rust/target/
+
+# FFmpeg folder (large)
+ffmpeg/
+edgedriver_win64/
+
+# Downloaded images
+downloaded_images/

@@ -1,0 +1,16 @@
+{
+    "SYMBOL": "XAUUSD.m",
+    "TIMEFRAME": 30,
+    "VOLUME": 0.01,
+    "POLL_INTERVAL": 300,
+    "SEQ_LENGTH": 100,
+    "MODEL_PATH": "superpoint_transformer.pth",
+    "RISK_PARAMS": {
+        "max_drawdown": 0.05,
+        "stop_loss": 0.01,
+        "take_profit": 0.02,
+        "risk_per_trade": 0.01
+    },
+    "SCALER_PATH": "scaler.pkl",
+    "MIN_CONFIDENCE": 0.6
+}

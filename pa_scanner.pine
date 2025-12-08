@@ -1,0 +1,1237 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © HackWarrior
+
+//@version=5
+indicator("Advanced Price Action Scanner", overlay=true, max_labels_count=500)
+
+// ==========================================
+// USER CONFIGURATION
+// ==========================================
+
+// Pattern Categories
+enable_single_candle = input.bool(true, "Enable Single Candle Patterns", group="Pattern Categories")
+enable_two_candle = input.bool(true, "Enable Two Candle Patterns", group="Pattern Categories")
+enable_three_candle = input.bool(true, "Enable Three Candle Patterns", group="Pattern Categories")
+enable_chart_patterns = input.bool(true, "Enable Chart Patterns", group="Pattern Categories")
+
+// Sensitivity Settings
+wick_ratio = input.float(2.0, "Wick to Body Ratio", minval=1.0, maxval=5.0, step=0.5, group="Sensitivity")
+body_ratio = input.float(0.3, "Small Body Ratio", minval=0.1, maxval=0.5, step=0.05, group="Sensitivity")
+engulf_threshold = input.float(0.5, "Engulfing Threshold", minval=0.3, maxval=1.0, step=0.1, group="Sensitivity")
+
+// Visual Settings
+show_labels = input.bool(true, "Show Pattern Labels", group="Display")
+label_size = input.string("small", "Label Size", options=["tiny", "small", "normal", "large"], group="Display")
+show_arrows = input.bool(true, "Show Arrows", group="Display")
+arrow_size = input.string("normal", "Arrow Size", options=["tiny", "small", "normal", "large"], group="Display")
+
+// Alert Settings
+enable_alerts = input.bool(true, "Enable Alerts", group="Alerts")
+
+// Advanced Features
+show_confidence = input.bool(true, "Show Confidence Score", group="Advanced")
+show_statistics = input.bool(false, "Show Statistics Table", group="Advanced")
+show_trendlines = input.bool(true, "Draw Pattern Lines", group="Advanced")
+show_targets = input.bool(true, "Show Price Targets", group="Advanced")
+min_confidence = input.int(5, "Minimum Confidence (1-10)", minval=1, maxval=10, group="Advanced")
+
+// Professional Features
+enable_harmonic = input.bool(true, "Enable Harmonic Patterns", group="Professional")
+enable_volume_confirm = input.bool(true, "Volume Confirmation", group="Professional")
+enable_mtf = input.bool(false, "Multi-Timeframe Confirmation", group="Professional")
+mtf_timeframe = input.timeframe("60", "MTF Timeframe", group="Professional")
+volume_threshold = input.float(1.5, "Volume Spike Multiplier", minval=1.0, maxval=3.0, step=0.1, group="Professional")
+
+// Institutional Features
+enable_divergence = input.bool(true, "Divergence Detection", group="Institutional")
+enable_sr_zones = input.bool(true, "Support/Resistance Zones", group="Institutional")
+enable_order_blocks = input.bool(true, "Order Blocks", group="Institutional")
+enable_smart_money = input.bool(true, "Smart Money Concepts", group="Institutional")
+sr_lookback = input.int(50, "S/R Zone Lookback", minval=20, maxval=200, group="Institutional")
+
+// ==========================================
+// CANDLE PROPERTIES
+// ==========================================
+body_top = math.max(open, close)
+body_bottom = math.min(open, close)
+body_size = body_top - body_bottom
+upper_wick = high - body_top
+lower_wick = body_bottom - low
+full_range = high - low
+is_bullish = close > open
+is_bearish = close < open
+is_doji = body_size <= (full_range * 0.1)
+
+// Helper functions for candle analysis
+body_pct(i) => (math.max(open[i], close[i]) - math.min(open[i], close[i])) / (high[i] - low[i])
+upper_wick_size(i) => high[i] - math.max(open[i], close[i])
+lower_wick_size(i) => math.min(open[i], close[i]) - low[i]
+is_bull(i) => close[i] > open[i]
+is_bear(i) => close[i] < open[i]
+body_length(i) => math.max(open[i], close[i]) - math.min(open[i], close[i])
+
+// ==========================================
+// SINGLE CANDLE PATTERNS
+// ==========================================
+
+// BULLISH HAMMER
+pattern_hammer = enable_single_candle and lower_wick > (wick_ratio * body_size) and upper_wick < body_size and is_bullish
+
+// BULLISH INVERTED HAMMER
+pattern_inverted_hammer = enable_single_candle and upper_wick > (wick_ratio * body_size) and lower_wick < body_size and is_bullish
+
+// BEARISH SHOOTING STAR
+pattern_shooting_star = enable_single_candle and upper_wick > (wick_ratio * body_size) and lower_wick < body_size and is_bearish
+
+// BEARISH HANGING MAN
+pattern_hanging_man = enable_single_candle and lower_wick > (wick_ratio * body_size) and upper_wick < body_size and is_bearish
+
+// DOJI (Indecision)
+pattern_doji = enable_single_candle and is_doji
+
+// LONG BULLISH (Marubozu-like)
+pattern_long_bull = enable_single_candle and is_bullish and body_size > (full_range * 0.8) and upper_wick < (full_range * 0.1) and lower_wick < (full_range * 0.1)
+
+// LONG BEARISH (Marubozu-like)
+pattern_long_bear = enable_single_candle and is_bearish and body_size > (full_range * 0.8) and upper_wick < (full_range * 0.1) and lower_wick < (full_range * 0.1)
+
+// ==========================================
+// TWO CANDLE PATTERNS
+// ==========================================
+
+// BULLISH ENGULFING
+prev_body_top_1 = math.max(open[1], close[1])
+prev_body_bottom_1 = math.min(open[1], close[1])
+pattern_bullish_engulfing = enable_two_candle and is_bear(1) and is_bullish and close > open[1] and open < close[1]
+
+// BEARISH ENGULFING
+pattern_bearish_engulfing = enable_two_candle and is_bull(1) and is_bearish and close < open[1] and open > close[1]
+
+// BULLISH HARAMI
+pattern_bullish_harami = enable_two_candle and is_bear(1) and is_bullish and open > close[1] and close < open[1] and body_size < body_length(1)
+
+// BEARISH HARAMI
+pattern_bearish_harami = enable_two_candle and is_bull(1) and is_bearish and open < close[1] and close > open[1] and body_size < body_length(1)
+
+// PIERCING LINE
+prev_midpoint = (open[1] + close[1]) / 2
+pattern_piercing = enable_two_candle and is_bear(1) and is_bullish and open < close[1] and close > prev_midpoint and close < open[1]
+
+// DARK CLOUD COVER
+pattern_dark_cloud = enable_two_candle and is_bull(1) and is_bearish and open > close[1] and close < prev_midpoint and close > open[1]
+
+// BULLISH KICKING
+pattern_bullish_kicking = enable_two_candle and is_bear(1) and is_bullish and body_length(1) > full_range[1] * 0.7 and body_size > full_range * 0.7 and open > close[1]
+
+// BEARISH KICKING
+pattern_bearish_kicking = enable_two_candle and is_bull(1) and is_bearish and body_length(1) > full_range[1] * 0.7 and body_size > full_range * 0.7 and open < close[1]
+
+// TWEEZER TOP
+pattern_tweezer_top = enable_two_candle and is_bull(1) and is_bearish and math.abs(high - high[1]) < (full_range * 0.05)
+
+// TWEEZER BOTTOM
+pattern_tweezer_bottom = enable_two_candle and is_bear(1) and is_bullish and math.abs(low - low[1]) < (full_range * 0.05)
+
+// IN-NECK PATTERN (Bearish)
+pattern_in_neck = enable_two_candle and is_bear(1) and is_bullish and close <= low[1] and open < close[1]
+
+// ON-NECK PATTERN (Bearish)
+pattern_on_neck = enable_two_candle and is_bear(1) and is_bullish and math.abs(close - low[1]) < (full_range * 0.1) and open < close[1]
+
+// THRUSTING PATTERN (Bearish)
+pattern_thrusting = enable_two_candle and is_bear(1) and is_bullish and close > close[1] and close < ((open[1] + close[1]) / 2)
+
+// MATCHING LOW (Bullish)
+pattern_matching_low = enable_two_candle and is_bear(1) and is_bearish and math.abs(close - close[1]) < (full_range * 0.05)
+
+// MEETING LINES
+pattern_meeting_bull = enable_two_candle and is_bear(1) and is_bullish and math.abs(close - close[1]) < (full_range * 0.05)
+pattern_meeting_bear = enable_two_candle and is_bull(1) and is_bearish and math.abs(close - close[1]) < (full_range * 0.05)
+
+// SEPARATING LINES
+pattern_separating_bull = enable_two_candle and is_bear(1) and is_bullish and math.abs(open - open[1]) < (full_range * 0.05)
+pattern_separating_bear = enable_two_candle and is_bull(1) and is_bearish and math.abs(open - open[1]) < (full_range * 0.05)
+
+// HOMING PIGEON (Bullish)
+pattern_homing_pigeon = enable_two_candle and is_bear(1) and is_bearish and open[1] > open and close < close[1] and open < open[1]
+
+// MATCHING HIGH (Bearish)
+pattern_matching_high = enable_two_candle and is_bull(1) and is_bullish and math.abs(high - high[1]) < (full_range * 0.05)
+
+// ==========================================
+// THREE CANDLE PATTERNS
+// ==========================================
+
+// MORNING STAR
+pattern_morning_star = enable_three_candle and is_bear(2) and body_length(2) > body_length(1) * 2 and body_length(1) < body_length(2) * body_ratio and is_bullish and close > (open[2] + close[2]) / 2
+
+// EVENING STAR
+pattern_evening_star = enable_three_candle and is_bull(2) and body_length(2) > body_length(1) * 2 and body_length(1) < body_length(2) * body_ratio and is_bearish and close < (open[2] + close[2]) / 2
+
+// MORNING DOJI STAR
+pattern_morning_doji_star = enable_three_candle and is_bear(2) and body_length(1) <= (high[1] - low[1]) * 0.1 and is_bullish and close > (open[2] + close[2]) / 2
+
+// EVENING DOJI STAR
+pattern_evening_doji_star = enable_three_candle and is_bull(2) and body_length(1) <= (high[1] - low[1]) * 0.1 and is_bearish and close < (open[2] + close[2]) / 2
+
+// THREE WHITE SOLDIERS
+pattern_three_white_soldiers = enable_three_candle and is_bull(2) and is_bull(1) and is_bullish and close > close[1] and close[1] > close[2] and open > open[1] and open[1] > open[2] and open < close[1] and open[1] < close[2]
+
+// THREE BLACK CROWS
+pattern_three_black_crows = enable_three_candle and is_bear(2) and is_bear(1) and is_bearish and close < close[1] and close[1] < close[2] and open < open[1] and open[1] < open[2] and open > close[1] and open[1] > close[2]
+
+// THREE INSIDE UP
+pattern_three_inside_up = enable_three_candle and is_bear(2) and is_bullish[1] and is_bullish and open[1] > close[2] and close[1] < open[2] and close > open[2]
+
+// THREE INSIDE DOWN
+pattern_three_inside_down = enable_three_candle and is_bull(2) and is_bearish[1] and is_bearish and open[1] < close[2] and close[1] > open[2] and close < open[2]
+
+// THREE OUTSIDE UP
+pattern_three_outside_up = enable_three_candle and is_bear(2) and is_bull(1) and is_bullish and close[1] > open[2] and open[1] < close[2] and close > close[1]
+
+// THREE OUTSIDE DOWN
+pattern_three_outside_down = enable_three_candle and is_bull(2) and is_bear(1) and is_bearish and close[1] < open[2] and open[1] > close[2] and close < close[1]
+
+// ABANDONED BABY BULLISH
+gap_down_1 = high[1] < low[2]
+gap_up_0 = low > high[1]
+pattern_abandoned_baby_bull = enable_three_candle and is_bear(2) and is_doji[1] and is_bullish and gap_down_1 and gap_up_0
+
+// ABANDONED BABY BEARISH
+gap_up_1 = low[1] > high[2]
+gap_down_0 = high < low[1]
+pattern_abandoned_baby_bear = enable_three_candle and is_bull(2) and is_doji[1] and is_bearish and gap_up_1 and gap_down_0
+
+// TRI-STAR (Rare reversal)
+pattern_tristar_bull = enable_three_candle and is_doji[2] and is_doji[1] and is_doji and low[1] < low[2] and low[1] < low
+pattern_tristar_bear = enable_three_candle and is_doji[2] and is_doji[1] and is_doji and high[1] > high[2] and high[1] > high
+
+// RISING THREE METHODS (Bullish continuation)
+pattern_rising_three = enable_three_candle and is_bull(2) and is_bear(1) and is_bearish and close[1] > close and close > close[2] and is_bull(3) and close > close[3]
+
+// FALLING THREE METHODS (Bearish continuation)
+pattern_falling_three = enable_three_candle and is_bear(2) and is_bull(1) and is_bullish and close[1] < close and close < close[2] and is_bear(3) and close < close[3]
+
+// ADVANCE BLOCK (Bearish)
+pattern_advance_block = enable_three_candle and is_bull(2) and is_bull(1) and is_bullish and body_length(2) > body_length(1) and body_length(1) > body_size and upper_wick_size(2) < upper_wick_size(1) and upper_wick_size(1) < upper_wick
+
+// DELIBERATION (Bearish)
+pattern_deliberation = enable_three_candle and is_bull(2) and is_bull(1) and is_bullish and close[2] < close[1] and close[1] < close and body_length(1) < body_length(2) and body_size < body_length(1)
+
+// STICK SANDWICH (Bullish)
+pattern_stick_sandwich = enable_three_candle and is_bear(2) and is_bull(1) and is_bearish and math.abs(close - close[2]) < (full_range * 0.05)
+
+// UNIQUE 3 RIVER BOTTOM (Bullish)
+pattern_unique_3_river = enable_three_candle and is_bear(2) and is_bear(1) and body_length(1) < body_length(2) * 0.5 and low[1] < low[2] and is_bullish and close < close[1]
+
+// CONCEALING BABY SWALLOW (Bullish)
+pattern_concealing_baby = enable_three_candle and is_bear(2) and is_bear(1) and is_bearish and open < close[1] and close > open[1] and body_size > body_length(1)
+
+// TWO CROWS (Bearish)
+pattern_two_crows = enable_three_candle and is_bull(2) and is_bear(1) and is_bearish and close[1] < open[1] and close < close[1] and open > close[1]
+
+// UPSIDE GAP TWO CROWS (Bearish)
+pattern_gap_two_crows = enable_three_candle and is_bull(2) and is_bear(1) and is_bearish and low[1] > high[2] and close < close[1] and close > close[2]
+
+// ==========================================
+// INSIDE BAR & BREAKOUT PATTERNS
+// ==========================================
+
+is_inside = high[1] < high[2] and low[1] > low[2]
+pattern_inside_bar_bull = enable_chart_patterns and is_inside and close > high[2]
+pattern_inside_bar_bear = enable_chart_patterns and is_inside and close < low[2]
+
+// OUTSIDE BAR
+is_outside = high > high[1] and low < low[1]
+pattern_outside_bar_bull = enable_chart_patterns and is_outside and is_bullish
+pattern_outside_bar_bear = enable_chart_patterns and is_outside and is_bearish
+
+// ==========================================
+// GAP PATTERNS
+// ==========================================
+
+// TASUKI GAP UP (Bullish continuation)
+pattern_tasuki_gap_up = enable_three_candle and is_bull(2) and is_bull(1) and is_bearish and low[1] > high[2] and open < close[1] and close > close[2]
+
+// TASUKI GAP DOWN (Bearish continuation)
+pattern_tasuki_gap_down = enable_three_candle and is_bear(2) and is_bear(1) and is_bullish and high[1] < low[2] and open > close[1] and close < close[2]
+
+// UPSIDE GAP 3 METHODS (Bullish)
+pattern_upside_gap_3 = enable_three_candle and is_bull(2) and is_bull(1) and is_bullish and low[1] > high[2] and close > close[1]
+
+// DOWNSIDE GAP 3 METHODS (Bearish)
+pattern_downside_gap_3 = enable_three_candle and is_bear(2) and is_bear(1) and is_bearish and high[1] < low[2] and close < close[1]
+
+// ==========================================
+// ADVANCED CHART PATTERNS
+// ==========================================
+
+// Configuration for chart patterns
+chart_lookback = input.int(20, "Chart Pattern Lookback", minval=10, maxval=50, group="Chart Patterns")
+chart_tolerance = input.float(0.02, "Chart Pattern Tolerance %", minval=0.01, maxval=0.05, step=0.01, group="Chart Patterns")
+
+// Helper function to find pivot highs and lows
+pivotHigh(len) =>
+    ph = ta.pivothigh(high, len, len)
+    ph
+
+pivotLow(len) =>
+    pl = ta.pivotlow(low, len, len)
+    pl
+
+// DOUBLE TOP PATTERN (Bearish Reversal)
+// Two peaks at approximately same level with a trough between
+var float peak1_price = na
+var int peak1_bar = na
+var float trough_price = na
+var float peak2_price = na
+
+ph = pivotHigh(5)
+if not na(ph)
+    if na(peak1_price)
+        peak1_price := ph
+        peak1_bar := bar_index[5]
+    else if ph < peak1_price * (1 - chart_tolerance) and na(trough_price)
+        trough_price := ph
+    else if not na(trough_price) and ph > trough_price
+        peak2_price := ph
+        
+pattern_double_top = enable_chart_patterns and not na(peak1_price) and not na(peak2_price) and math.abs(peak1_price - peak2_price) < peak1_price * chart_tolerance and not na(trough_price) and trough_price < peak1_price * 0.95
+
+// DOUBLE BOTTOM PATTERN (Bullish Reversal)
+// Two troughs at approximately same level with a peak between
+var float trough1_price = na
+var int trough1_bar = na
+var float peak_price = na
+var float trough2_price = na
+
+pl = pivotLow(5)
+if not na(pl)
+    if na(trough1_price)
+        trough1_price := pl
+        trough1_bar := bar_index[5]
+    else if pl > trough1_price * (1 + chart_tolerance) and na(peak_price)
+        peak_price := pl
+    else if not na(peak_price) and pl < peak_price
+        trough2_price := pl
+
+pattern_double_bottom = enable_chart_patterns and not na(trough1_price) and not na(trough2_price) and math.abs(trough1_price - trough2_price) < trough1_price * chart_tolerance and not na(peak_price) and peak_price > trough1_price * 1.05
+
+// HEAD AND SHOULDERS (Bearish Reversal)
+// Left shoulder, head (higher), right shoulder at similar level to left
+var float ls_high = na  // left shoulder
+var float head_high = na
+var float rs_high = na  // right shoulder
+var bool hs_forming = false
+
+if not na(ph)
+    if na(ls_high)
+        ls_high := ph
+        hs_forming := true
+    else if ph > ls_high and na(head_high)
+        head_high := ph
+    else if not na(head_high) and ph < head_high and na(rs_high)
+        rs_high := ph
+
+pattern_head_shoulders = enable_chart_patterns and not na(ls_high) and not na(head_high) and not na(rs_high) and head_high > ls_high and head_high > rs_high and math.abs(ls_high - rs_high) < ls_high * chart_tolerance
+
+// INVERSE HEAD AND SHOULDERS (Bullish Reversal)
+// Left shoulder, head (lower), right shoulder at similar level to left
+var float ls_low = na  // left shoulder
+var float head_low = na
+var float rs_low = na  // right shoulder
+
+if not na(pl)
+    if na(ls_low)
+        ls_low := pl
+    else if pl < ls_low and na(head_low)
+        head_low := pl
+    else if not na(head_low) and pl > head_low and na(rs_low)
+        rs_low := pl
+
+pattern_inv_head_shoulders = enable_chart_patterns and not na(ls_low) and not na(head_low) and not na(rs_low) and head_low < ls_low and head_low < rs_low and math.abs(ls_low - rs_low) < ls_low * chart_tolerance
+
+// ASCENDING TRIANGLE (Bullish - flat top, rising bottom)
+highest_recent = ta.highest(high, chart_lookback)
+lowest_recent = ta.lowest(low, chart_lookback)
+slope_bottom = ta.linreg(low, chart_lookback, 0) - ta.linreg(low, chart_lookback, chart_lookback)
+
+pattern_ascending_triangle = enable_chart_patterns and slope_bottom > 0 and ta.stdev(high, chart_lookback) < (highest_recent * 0.01) and close > ta.sma(close, 20)
+
+pattern_ascending_triangle_breakout = pattern_ascending_triangle and close > highest_recent
+
+// DESCENDING TRIANGLE (Bearish - flat bottom, declining top)
+slope_top = ta.linreg(high, chart_lookback, 0) - ta.linreg(high, chart_lookback, chart_lookback)
+
+pattern_descending_triangle = enable_chart_patterns and slope_top < 0 and ta.stdev(low, chart_lookback) < (lowest_recent * 0.01) and close < ta.sma(close, 20)
+
+pattern_descending_triangle_breakout = pattern_descending_triangle and close < lowest_recent
+
+// SYMMETRICAL TRIANGLE (Bilateral - converging trendlines)
+range_start = highest_recent - lowest_recent
+range_current = ta.highest(high, 5) - ta.lowest(low, 5)
+
+pattern_symmetrical_triangle = enable_chart_patterns and slope_top < 0 and slope_bottom > 0 and range_current < range_start * 0.5
+
+pattern_symmetrical_triangle_bull_break = pattern_symmetrical_triangle and close > ta.highest(high, 10)[1]
+pattern_symmetrical_triangle_bear_break = pattern_symmetrical_triangle and close < ta.lowest(low, 10)[1]
+
+// RISING WEDGE (Bearish Reversal - both lines rising, converging)
+slope_bottom_wedge = ta.linreg(low, chart_lookback, 0) - ta.linreg(low, chart_lookback, chart_lookback)
+slope_top_wedge = ta.linreg(high, chart_lookback, 0) - ta.linreg(high, chart_lookback, chart_lookback)
+
+pattern_rising_wedge = enable_chart_patterns and slope_bottom_wedge > 0 and slope_top_wedge > 0 and slope_top_wedge < slope_bottom_wedge and close > ta.sma(close, 50)
+
+pattern_rising_wedge_breakdown = pattern_rising_wedge and close < ta.lowest(low, 10)[1]
+
+// FALLING WEDGE (Bullish Reversal - both lines falling, converging)
+pattern_falling_wedge = enable_chart_patterns and slope_bottom_wedge < 0 and slope_top_wedge < 0 and slope_bottom_wedge < slope_top_wedge and close < ta.sma(close, 50)
+
+pattern_falling_wedge_breakout = pattern_falling_wedge and close > ta.highest(high, 10)[1]
+
+// RECTANGLE / CHANNEL (Continuation pattern)
+is_range_bound = ta.stdev(high, chart_lookback) < (highest_recent * 0.015) and ta.stdev(low, chart_lookback) < (lowest_recent * 0.015)
+
+pattern_rectangle = enable_chart_patterns and is_range_bound
+
+pattern_rectangle_bull_break = pattern_rectangle and close > highest_recent
+pattern_rectangle_bear_break = pattern_rectangle and close < lowest_recent
+
+// BULL FLAG / PENNANT (Bullish Continuation)
+// Strong upward move followed by consolidation
+prior_trend_bull = close[chart_lookback] < close[chart_lookback/2] and close[chart_lookback/2] < close
+price_change = (close - close[chart_lookback]) / close[chart_lookback]
+
+pattern_bull_flag = enable_chart_patterns and prior_trend_bull and price_change > 0.05 and range_current < range_start * 0.4 and slope_top_wedge < 0
+
+pattern_bull_flag_breakout = pattern_bull_flag and close > ta.highest(high, 5)[1]
+
+// BEAR FLAG / PENNANT (Bearish Continuation)
+prior_trend_bear = close[chart_lookback] > close[chart_lookback/2] and close[chart_lookback/2] > close
+price_change_bear = (close[chart_lookback] - close) / close[chart_lookback]
+
+pattern_bear_flag = enable_chart_patterns and prior_trend_bear and price_change_bear > 0.05 and range_current < range_start * 0.4 and slope_bottom_wedge > 0
+
+pattern_bear_flag_breakdown = pattern_bear_flag and close < ta.lowest(low, 5)[1]
+
+// CUP AND HANDLE (Bullish)
+// U-shaped recovery followed by small consolidation
+cup_depth = ta.lowest(low, chart_lookback * 2)
+cup_left = high[chart_lookback * 2]
+cup_right = high[chart_lookback]
+handle_depth = ta.lowest(low, chart_lookback / 2)
+
+pattern_cup_and_handle = enable_chart_patterns and cup_left > cup_depth * 1.1 and cup_right > cup_depth * 1.1 and math.abs(cup_left - cup_right) < cup_left * 0.05 and handle_depth > cup_depth and close > ta.sma(close, 50)
+
+pattern_cup_handle_breakout = pattern_cup_and_handle and close > math.max(cup_left, cup_right)
+
+// ==========================================
+
+// BELT HOLD PATTERNS
+// ==========================================
+
+// BULLISH BELT HOLD (similar to bullish marubozu with long body)
+pattern_belt_hold_bull = enable_single_candle and is_bullish and lower_wick < (full_range * 0.1) and body_size > (full_range * 0.7)
+
+// BEARISH BELT HOLD
+pattern_belt_hold_bear = enable_single_candle and is_bearish and upper_wick < (full_range * 0.1) and body_size > (full_range * 0.7)
+
+// ==========================================
+// HARMONIC PATTERNS (Fibonacci-based)
+// ==========================================
+
+// Fibonacci calculation helpers
+fib_0382 = 0.382
+fib_0500 = 0.500
+fib_0618 = 0.618
+fib_0786 = 0.786
+fib_1272 = 1.272
+fib_1618 = 1.618
+fib_2618 = 2.618
+
+// Function to check if value is within tolerance of fibonacci level
+in_fib_range(value, target, tolerance) =>
+    math.abs(value - target) <= tolerance
+
+// Find swing points for harmonic patterns
+var float x_price = na
+var float a_price = na
+var float b_price = na
+var float c_price = na
+var float d_price = na
+var int x_bar = na
+var int a_bar = na
+var int b_bar = na
+var int c_bar = na
+
+// Update swing points (simplified - uses pivot highs/lows)
+if not na(pivotHigh(5))
+    x_price := a_price
+    a_price := b_price
+    b_price := c_price
+    c_price := high[5]
+    x_bar := a_bar
+    a_bar := b_bar
+    b_bar := c_bar
+    c_bar := bar_index - 5
+
+if not na(pivotLow(5))
+    x_price := a_price
+    a_price := b_price
+    b_price := c_price
+    c_price := low[5]
+    x_bar := a_bar
+    a_bar := b_bar
+    b_bar := c_bar
+    c_bar := bar_index - 5
+
+// GARTLEY PATTERN (Bullish)
+// XA, AB, BC, CD with specific fib ratios
+// AB = 0.618 of XA, BC = 0.382-0.886 of AB, CD = 1.272-1.618 of BC, D = 0.786 of XA
+pattern_gartley_bull = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price) and not na(c_price)
+
+if pattern_gartley_bull
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    bc_length = math.abs(c_price - b_price)
+    cd_length = math.abs(close - c_price)
+    
+    ab_ratio = ab_length / xa_length
+    d_ratio = math.abs(close - x_price) / xa_length
+    
+    pattern_gartley_bull := in_fib_range(ab_ratio, fib_0618, 0.05) and in_fib_range(d_ratio, fib_0786, 0.05) and close < x_price
+
+// GARTLEY PATTERN (Bearish)
+pattern_gartley_bear = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price) and not na(c_price)
+
+if pattern_gartley_bear
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_ratio = math.abs(close - x_price) / xa_length
+    
+    pattern_gartley_bear := in_fib_range(ab_ratio, fib_0618, 0.05) and in_fib_range(d_ratio, fib_0786, 0.05) and close > x_price
+
+// BUTTERFLY PATTERN (Bullish)
+// AB = 0.786 of XA, D = 1.272-1.618 extension of XA
+pattern_butterfly_bull = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_butterfly_bull
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_extension = math.abs(close - x_price) / xa_length
+    
+    pattern_butterfly_bull := in_fib_range(ab_ratio, fib_0786, 0.05) and d_extension >= 1.20 and d_extension <= 1.70 and close < x_price
+
+// BUTTERFLY PATTERN (Bearish)
+pattern_butterfly_bear = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_butterfly_bear
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_extension = math.abs(close - x_price) / xa_length
+    
+    pattern_butterfly_bear := in_fib_range(ab_ratio, fib_0786, 0.05) and d_extension >= 1.20 and d_extension <= 1.70 and close > x_price
+
+// BAT PATTERN (Bullish)
+// AB = 0.382-0.500 of XA, D = 0.886 of XA
+pattern_bat_bull = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_bat_bull
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_ratio = math.abs(close - x_price) / xa_length
+    
+    pattern_bat_bull := ab_ratio >= 0.35 and ab_ratio <= 0.55 and in_fib_range(d_ratio, 0.886, 0.05) and close < x_price
+
+// BAT PATTERN (Bearish)
+pattern_bat_bear = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_bat_bear
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_ratio = math.abs(close - x_price) / xa_length
+    
+    pattern_bat_bear := ab_ratio >= 0.35 and ab_ratio <= 0.55 and in_fib_range(d_ratio, 0.886, 0.05) and close > x_price
+
+// CRAB PATTERN (Bullish)
+// AB = 0.382-0.618 of XA, D = 1.618 extension of XA
+pattern_crab_bull = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_crab_bull
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_extension = math.abs(close - x_price) / xa_length
+    
+    pattern_crab_bull := ab_ratio >= 0.35 and ab_ratio <= 0.65 and in_fib_range(d_extension, fib_1618, 0.10) and close < x_price
+
+// CRAB PATTERN (Bearish)
+pattern_crab_bear = enable_harmonic and not na(x_price) and not na(a_price) and not na(b_price)
+
+if pattern_crab_bear
+    xa_length = math.abs(a_price - x_price)
+    ab_length = math.abs(b_price - a_price)
+    ab_ratio = ab_length / xa_length
+    d_extension = math.abs(close - x_price) / xa_length
+    
+    pattern_crab_bear := ab_ratio >= 0.35 and ab_ratio <= 0.65 and in_fib_range(d_extension, fib_1618, 0.10) and close > x_price
+
+// ==========================================
+// VOLUME ANALYSIS & CONFIRMATION
+// ==========================================
+
+// Volume calculations
+avg_volume = ta.sma(volume, 20)
+volume_spike = volume > (avg_volume * volume_threshold)
+volume_increasing = volume > volume[1] and volume[1] > volume[2]
+volume_decreasing = volume < volume[1] and volume[1] < volume[2]
+
+// Volume confirmation for patterns
+volume_confirms_bullish = enable_volume_confirm ? (volume_spike or volume_increasing) : true
+volume_confirms_bearish = enable_volume_confirm ? (volume_spike or volume_increasing) : true
+
+// ==========================================
+// MULTI-TIMEFRAME CONFIRMATION
+// ==========================================
+
+// Get higher timeframe data
+mtf_close = request.security(syminfo.tickerid, mtf_timeframe, close)
+mtf_open = request.security(syminfo.tickerid, mtf_timeframe, open)
+mtf_bullish = mtf_close > mtf_open
+mtf_bearish = mtf_close < mtf_open
+
+// MTF confirmation
+mtf_confirms_bull = enable_mtf ? mtf_bullish : true
+mtf_confirms_bear = enable_mtf ? mtf_bearish : true
+
+// ==========================================
+// DIVERGENCE DETECTION
+// ==========================================
+
+// RSI calculation
+rsi_length = 14
+rsi = ta.rsi(close, rsi_length)
+
+// MACD calculation
+[macd_line, signal_line, macd_hist] = ta.macd(close, 12, 26, 9)
+
+// Bullish RSI Divergence (price makes lower low, RSI makes higher low)
+price_lower_low = low < ta.lowest(low[1], 5)[1]
+rsi_higher_low = rsi > ta.lowest(rsi[1], 5)[1]
+rsi_divergence_bull = enable_divergence and price_lower_low and rsi_higher_low
+
+// Bearish RSI Divergence (price makes higher high, RSI makes lower high)
+price_higher_high = high > ta.highest(high[1], 5)[1]
+rsi_lower_high = rsi < ta.highest(rsi[1], 5)[1]
+rsi_divergence_bear = enable_divergence and price_higher_high and rsi_lower_high
+
+// Bullish MACD Divergence
+macd_higher_low = macd_line > ta.lowest(macd_line[1], 5)[1]
+macd_divergence_bull = enable_divergence and price_lower_low and macd_higher_low
+
+// Bearish MACD Divergence
+macd_lower_high = macd_line < ta.highest(macd_line[1], 5)[1]
+macd_divergence_bear = enable_divergence and price_higher_high and macd_lower_high
+
+// Combined divergence signals
+divergence_bull = rsi_divergence_bull or macd_divergence_bull
+divergence_bear = rsi_divergence_bear or macd_divergence_bear
+
+// ==========================================
+// SUPPORT/RESISTANCE ZONES
+// ==========================================
+
+// Find significant highs and lows
+var float[] resistance_zones = array.new_float(0)
+var float[] support_zones = array.new_float(0)
+
+// Detect swing highs/lows for S/R
+swing_high = ta.pivothigh(high, 10, 10)
+swing_low = ta.pivotlow(low, 10, 10)
+
+// Update S/R arrays
+if not na(swing_high) and enable_sr_zones
+    array.push(resistance_zones, swing_high)
+    if array.size(resistance_zones) > 20
+        array.shift(resistance_zones)
+
+if not na(swing_low) and enable_sr_zones
+    array.push(support_zones, swing_low)
+    if array.size(support_zones) > 20
+        array.shift(support_zones)
+
+// Check if price is near S/R zone
+near_resistance = false
+near_support = false
+
+if enable_sr_zones and array.size(resistance_zones) > 0
+    for i = 0 to array.size(resistance_zones) - 1
+        r_level = array.get(resistance_zones, i)
+        if math.abs(close - r_level) / close < 0.01  // Within 1%
+            near_resistance := true
+
+if enable_sr_zones and array.size(support_zones) > 0
+    for i = 0 to array.size(support_zones) - 1
+        s_level = array.get(support_zones, i)
+        if math.abs(close - s_level) / close < 0.01  // Within 1%
+            near_support := true
+
+// ==========================================
+// ORDER BLOCKS
+// ==========================================
+
+// Bullish Order Block: Last down candle before strong up move
+bullish_ob_detected = false
+var float bullish_ob_top = na
+var float bullish_ob_bottom = na
+
+if enable_order_blocks
+    // Strong up move (3+ consecutive bullish candles)
+    strong_up_move = is_bullish and is_bull(1) and is_bull(2) and is_bull(3)
+    
+    // Previous candle was bearish
+    if strong_up_move and is_bear(4)
+        bullish_ob_detected := true
+        bullish_ob_top := math.max(open[4], close[4])
+        bullish_ob_bottom := math.min(open[4], close[4])
+
+// Bearish Order Block: Last up candle before strong down move
+bearish_ob_detected = false
+var float bearish_ob_top = na
+var float bearish_ob_bottom = na
+
+if enable_order_blocks
+    // Strong down move
+    strong_down_move = is_bearish and is_bear(1) and is_bear(2) and is_bear(3)
+    
+    // Previous candle was bullish
+    if strong_down_move and is_bull(4)
+        bearish_ob_detected := true
+        bearish_ob_top := math.max(open[4], close[4])
+        bearish_ob_bottom := math.min(open[4], close[4])
+
+// Check if price is in order block
+in_bullish_ob = not na(bullish_ob_top) and close >= bullish_ob_bottom and close <= bullish_ob_top
+in_bearish_ob = not na(bearish_ob_top) and close >= bearish_ob_bottom and close <= bearish_ob_top
+
+// ==========================================
+// SMART MONEY CONCEPTS
+// ==========================================
+
+// Fair Value Gap (FVG) Detection
+// Bullish FVG: Gap between candle[2] high and current candle low
+bullish_fvg = enable_smart_money and low > high[2] and is_bullish
+fvg_bull_top = low
+fvg_bull_bottom = high[2]
+
+// Bearish FVG: Gap between candle[2] low and current candle high
+bearish_fvg = enable_smart_money and high < low[2] and is_bearish
+fvg_bear_top = low[2]
+fvg_bear_bottom = high
+
+// Liquidity Grab Detection
+// Bullish: Sweep below previous low then immediate reversal
+prev_low = ta.lowest(low[1], 10)[1]
+liquidity_grab_bull = enable_smart_money and low < prev_low and close > open and close > high[1]
+
+// Bearish: Sweep above previous high then immediate reversal
+prev_high = ta.highest(high[1], 10)[1]
+liquidity_grab_bear = enable_smart_money and high > prev_high and close < open and close < low[1]
+
+// Break of Structure (BOS)
+// Bullish BOS: Break above previous swing high
+bos_bull = enable_smart_money and high > ta.highest(high[1], 20)[1] and is_bullish
+
+// Bearish BOS: Break below previous swing low
+bos_bear = enable_smart_money and low < ta.lowest(low[1], 20)[1] and is_bearish
+
+// Change of Character (CHoCH) - Trend reversal signal
+// More aggressive than BOS, looks for short-term structure shifts
+choch_bull = enable_smart_money and close > ta.highest(high[1], 5)[1] and is_bear(1) and is_bullish
+choch_bear = enable_smart_money and close < ta.lowest(low[1], 5)[1] and is_bull(1) and is_bearish
+
+// Combine Smart Money signals
+smart_money_bull = liquidity_grab_bull or bos_bull or choch_bull or (bullish_fvg and in_bullish_ob)
+smart_money_bear = liquidity_grab_bear or bos_bear or choch_bear or (bearish_fvg and in_bearish_ob)
+
+// ==========================================
+// COMBINE ALL PATTERNS
+// ==========================================
+
+
+// Bullish Signals
+buy_signal = pattern_hammer or pattern_inverted_hammer or pattern_bullish_engulfing or 
+             pattern_bullish_harami or pattern_piercing or pattern_morning_star or 
+             pattern_morning_doji_star or pattern_three_white_soldiers or pattern_three_inside_up or 
+             pattern_three_outside_up or pattern_tweezer_bottom or pattern_bullish_kicking or
+             pattern_abandoned_baby_bull or pattern_tristar_bull or pattern_meeting_bull or
+             pattern_separating_bull or pattern_homing_pigeon or pattern_matching_low or
+             pattern_inside_bar_bull or pattern_outside_bar_bull or pattern_tasuki_gap_up or
+             pattern_upside_gap_3 or pattern_belt_hold_bull or pattern_stick_sandwich or
+             pattern_unique_3_river or pattern_concealing_baby or pattern_rising_three or
+             pattern_long_bull or pattern_double_bottom or pattern_inv_head_shoulders or
+             pattern_ascending_triangle_breakout or pattern_falling_wedge_breakout or
+             pattern_rectangle_bull_break or pattern_bull_flag_breakout or 
+             pattern_symmetrical_triangle_bull_break or pattern_cup_handle_breakout or
+             pattern_gartley_bull or pattern_butterfly_bull or pattern_bat_bull or pattern_crab_bull
+
+// Bearish Signals
+sell_signal = pattern_shooting_star or pattern_hanging_man or pattern_bearish_engulfing or 
+              pattern_bearish_harami or pattern_dark_cloud or pattern_evening_star or 
+              pattern_evening_doji_star or pattern_three_black_crows or pattern_three_inside_down or 
+              pattern_three_outside_down or pattern_tweezer_top or pattern_bearish_kicking or
+              pattern_abandoned_baby_bear or pattern_tristar_bear or pattern_meeting_bear or
+              pattern_separating_bear or pattern_matching_high or pattern_in_neck or
+              pattern_on_neck or pattern_thrusting or pattern_inside_bar_bear or 
+              pattern_outside_bar_bear or pattern_tasuki_gap_down or pattern_downside_gap_3 or
+              pattern_belt_hold_bear or pattern_two_crows or pattern_gap_two_crows or
+              pattern_falling_three or pattern_advance_block or pattern_deliberation or
+              pattern_long_bear or pattern_double_top or pattern_head_shoulders or
+              pattern_descending_triangle_breakout or pattern_rising_wedge_breakdown or
+              pattern_rectangle_bear_break or pattern_bear_flag_breakdown or
+              pattern_symmetrical_triangle_bear_break or
+              pattern_gartley_bear or pattern_butterfly_bear or pattern_bat_bear or pattern_crab_bear
+
+// Apply confirmations
+buy_signal_confirmed = buy_signal and volume_confirms_bullish and mtf_confirms_bull
+sell_signal_confirmed = sell_signal and volume_confirms_bearish and mtf_confirms_bear
+
+// Institutional boost (increases confidence when multiple features align)
+institutional_boost_bull = (divergence_bull ? 1 : 0) + (near_support ? 1 : 0) + (in_bullish_ob ? 1 : 0) + (smart_money_bull ? 1 : 0)
+institutional_boost_bear = (divergence_bear ? 1 : 0) + (near_resistance ? 1 : 0) + (in_bearish_ob ? 1 : 0) + (smart_money_bear ? 1 : 0)
+
+// Ultra signals (pattern + confirmation + institutional features)
+ultra_buy_signal = buy_signal_confirmed and institutional_boost_bull >= 2
+ultra_sell_signal = sell_signal_confirmed and institutional_boost_bear >= 2
+
+// ==========================================
+// PATTERN NAMING FOR LABELS
+// ==========================================
+
+get_pattern_name() =>
+    var string name = ""
+    // Bullish patterns
+    if pattern_hammer
+        name := "Hammer"
+    else if pattern_inverted_hammer
+        name := "Inv Hammer"
+    else if pattern_bullish_engulfing
+        name := "Bull Engulf"
+    else if pattern_bullish_harami
+        name := "Bull Harami"
+    else if pattern_piercing
+        name := "Piercing"
+    else if pattern_morning_star
+        name := "Morning Star"
+    else if pattern_morning_doji_star
+        name := "Morn Doji"
+    else if pattern_three_white_soldiers
+        name := "3 White Sol"
+    else if pattern_three_inside_up
+        name := "3 Inside Up"
+    else if pattern_three_outside_up
+        name := "3 Outside Up"
+    else if pattern_abandoned_baby_bull
+        name := "Aband Baby↑"
+    else if pattern_tristar_bull
+        name := "Tristar↑"
+    else if pattern_rising_three
+        name := "Rising 3"
+    else if pattern_belt_hold_bull
+        name := "Belt Hold↑"
+    else if pattern_long_bull
+        name := "Long Bull"
+    else if pattern_inside_bar_bull
+        name := "Inside Bar↑"
+    // Bearish patterns
+    else if pattern_shooting_star
+        name := "Shoot Star"
+    else if pattern_hanging_man
+        name := "Hang Man"
+    else if pattern_bearish_engulfing
+        name := "Bear Engulf"
+    else if pattern_bearish_harami
+        name := "Bear Harami"
+    else if pattern_dark_cloud
+        name := "Dark Cloud"
+    else if pattern_evening_star
+        name := "Evening Star"
+    else if pattern_evening_doji_star
+        name := "Even Doji"
+    else if pattern_three_black_crows
+        name := "3 Black Crow"
+    else if pattern_three_inside_down
+        name := "3 Inside Dn"
+    else if pattern_three_outside_down
+        name := "3 Outside Dn"
+    else if pattern_abandoned_baby_bear
+        name := "Aband Baby↓"
+    else if pattern_tristar_bear
+        name := "Tristar↓"
+    else if pattern_falling_three
+        name := "Falling 3"
+    else if pattern_belt_hold_bear
+        name := "Belt Hold↓"
+    else if pattern_long_bear
+        name := "Long Bear"
+    else if pattern_inside_bar_bear
+        name := "Inside Bar↓"
+    // Chart patterns - Bullish
+    else if pattern_double_bottom
+        name := "2 Bottom"
+    else if pattern_inv_head_shoulders
+        name := "Inv H&S"
+    else if pattern_ascending_triangle_breakout
+        name := "Asc Triangle"
+    else if pattern_falling_wedge_breakout
+        name := "Fall Wedge↑"
+    else if pattern_rectangle_bull_break
+        name := "Rectangle↑"
+    else if pattern_bull_flag_breakout
+        name := "Bull Flag"
+    else if pattern_symmetrical_triangle_bull_break
+        name := "Sym Tri↑"
+    else if pattern_cup_handle_breakout
+        name := "Cup&Handle"
+    // Chart patterns - Bearish
+    else if pattern_double_top
+        name := "2 Top"
+    else if pattern_head_shoulders
+        name := "H&S"
+    else if pattern_descending_triangle_breakout
+        name := "Desc Triangle"
+    else if pattern_rising_wedge_breakdown
+        name := "Rise Wedge↓"
+    else if pattern_rectangle_bear_break
+        name := "Rectangle↓"
+    else if pattern_bear_flag_breakdown
+        name := "Bear Flag"
+    else if pattern_symmetrical_triangle_bear_break
+        name := "Sym Tri↓"
+    // Harmonic patterns
+    else if pattern_gartley_bull
+        name := "Gartley↑"
+    else if pattern_gartley_bear
+        name := "Gartley↓"
+    else if pattern_butterfly_bull
+        name := "Butterfly↑"
+    else if pattern_butterfly_bear
+        name := "Butterfly↓"
+    else if pattern_bat_bull
+        name := "Bat↑"
+    else if pattern_bat_bear
+        name := "Bat↓"
+    else if pattern_crab_bull
+        name := "Crab↑"
+    else if pattern_crab_bear
+        name := "Crab↓"
+    else if pattern_doji
+        name := "Doji"
+    name
+
+// ==========================================
+// PATTERN CONFIDENCE SCORING (1-10)
+// ==========================================
+
+get_pattern_confidence() =>
+    var int confidence = 5  // Default medium confidence
+    
+    // High confidence patterns (8-10)
+    if pattern_three_white_soldiers or pattern_three_black_crows
+        confidence := 9
+    else if pattern_bullish_engulfing or pattern_bearish_engulfing
+        confidence := 8
+    else if pattern_morning_star or pattern_evening_star
+        confidence := 8
+    else if pattern_abandoned_baby_bull or pattern_abandoned_baby_bear
+        confidence := 9
+    else if pattern_head_shoulders or pattern_inv_head_shoulders
+        confidence := 9
+    else if pattern_double_top or pattern_double_bottom
+        confidence := 8
+    
+    // Medium-high confidence (6-7)
+    else if pattern_bullish_harami or pattern_bearish_harami
+        confidence := 7
+    else if pattern_piercing or pattern_dark_cloud
+        confidence := 7
+    else if pattern_three_inside_up or pattern_three_inside_down
+        confidence := 7
+    else if pattern_ascending_triangle_breakout or pattern_descending_triangle_breakout
+        confidence := 8
+    else if pattern_bull_flag_breakout or pattern_bear_flag_breakdown
+        confidence := 8
+    else if pattern_cup_handle_breakout
+        confidence := 8
+    else if pattern_gartley_bull or pattern_gartley_bear
+        confidence := 9  // Gartley is highly reliable
+    else if pattern_butterfly_bull or pattern_butterfly_bear
+        confidence := 8
+    else if pattern_bat_bull or pattern_bat_bear
+        confidence := 8
+    else if pattern_crab_bull or pattern_crab_bear
+        confidence := 9  // Crab is very powerful
+    
+    // Medium confidence (5-6)
+    else if pattern_hammer or pattern_shooting_star
+        confidence := 6
+    else if pattern_inverted_hammer or pattern_hanging_man
+        confidence := 6
+    else if pattern_inside_bar_bull or pattern_inside_bar_bear
+        confidence := 6
+    else if pattern_rising_wedge_breakdown or pattern_falling_wedge_breakout
+        confidence := 6
+    else if pattern_rectangle_bull_break or pattern_rectangle_bear_break
+        confidence := 6
+    
+    // Lower confidence (4-5)
+    else if pattern_doji
+        confidence := 4
+    else if pattern_tweezer_top or pattern_tweezer_bottom
+        confidence := 5
+    else
+        confidence := 5
+    
+    confidence
+
+// Filter signals by minimum confidence
+pattern_confidence = get_pattern_confidence()
+buy_signal_filtered = buy_signal_confirmed and pattern_confidence >= min_confidence
+sell_signal_filtered = sell_signal_confirmed and pattern_confidence >= min_confidence
+
+// Keep original signals for statistics (without confirmations)
+buy_signal_stats = buy_signal and pattern_confidence >= min_confidence
+sell_signal_stats = sell_signal and pattern_confidence >= min_confidence
+
+// ==========================================
+// PRICE TARGET CALCULATIONS
+// ==========================================
+
+var float price_target = na
+var line target_line = na
+
+if show_targets
+    // Calculate targets based on pattern type
+    if pattern_double_bottom and not na(trough1_price) and not na(peak_price)
+        target_height = peak_price - trough1_price
+        price_target := close + target_height
+        
+    else if pattern_double_top and not na(peak1_price) and not na(trough_price)
+        target_height = peak1_price - trough_price
+        price_target := close - target_height
+        
+    else if pattern_ascending_triangle_breakout
+        target_height = highest_recent - lowest_recent
+        price_target := close + target_height
+        
+    else if pattern_descending_triangle_breakout
+        target_height = highest_recent - lowest_recent
+        price_target := close - target_height
+        
+    else if pattern_bull_flag_breakout or pattern_bear_flag_breakdown
+        flagpole_height = math.abs(close[chart_lookback] - close[chart_lookback/2])
+        price_target := buy_signal ? close + flagpole_height : close - flagpole_height
+        
+    else if pattern_cup_handle_breakout and not na(cup_left)
+        cup_height = cup_left - cup_depth
+        price_target := close + cup_height
+
+// ==========================================
+// VISUAL TRENDLINES FOR CHART PATTERNS
+// ==========================================
+
+var line support_line = na
+var line resistance_line = na
+lowest_5 = ta.lowest(low, 5)
+
+if show_trendlines and enable_chart_patterns
+    // Draw lines for active triangle patterns
+    if pattern_ascending_triangle
+        // Flat resistance line
+        if na(resistance_line)
+            resistance_line := line.new(bar_index - chart_lookback, highest_recent, bar_index, highest_recent, color=color.red, width=2, style=line.style_dashed)
+        else
+            line.set_x2(resistance_line, bar_index)
+            line.set_y2(resistance_line, highest_recent)
+        
+        // Rising support line (simplified)
+        if na(support_line)
+            support_line := line.new(bar_index - chart_lookback, lowest_recent, bar_index, lowest_5, color=color.green, width=2, style=line.style_dashed)
+        else
+            line.set_x2(support_line, bar_index)
+    
+    else if pattern_descending_triangle
+        // Flat support line
+        if na(support_line)
+            support_line := line.new(bar_index - chart_lookback, lowest_recent, bar_index, lowest_recent, color=color.green, width=2, style=line.style_dashed)
+        else
+            line.set_x2(support_line, bar_index)
+            line.set_y2(support_line, lowest_recent)
+
+// ==========================================
+// PATTERN STATISTICS TABLE
+// ==========================================
+
+if show_statistics
+    var table stats_table = table.new(position.top_right, 3, 10, bgcolor=color.new(color.black, 80), 
+                                      border_width=1, border_color=color.gray)
+    
+    // Count active patterns
+    var int bull_count = 0
+    var int bear_count = 0
+    var int total_count = 0
+    
+    if buy_signal
+        bull_count := bull_count + 1
+        total_count := total_count + 1
+    
+    if sell_signal
+        bear_count := bear_count + 1
+        total_count := total_count + 1
+    
+    // Table headers
+    table.cell(stats_table, 0, 0, "Pattern Stats", text_color=color.white, text_size=size.normal)
+    table.cell(stats_table, 1, 0, "Count", text_color=color.white, text_size=size.normal)
+    table.cell(stats_table, 2, 0, "Last", text_color=color.white, text_size=size.small)
+    
+    // Current pattern info
+    if buy_signal or sell_signal
+        table.cell(stats_table, 0, 1, "Current", text_color=color.yellow, text_size=size.small)
+        table.cell(stats_table, 1, 1, get_pattern_name(), text_color=color.yellow, text_size=size.small)
+        table.cell(stats_table, 2, 1, str.tostring(pattern_confidence), text_color=color.yellow, text_size=size.small)
+    
+    // Statistics rows
+    table.cell(stats_table, 0, 2, "Bullish", text_color=color.lime, text_size=size.small)
+    table.cell(stats_table, 1, 2, str.tostring(bull_count), text_color=color.lime, text_size=size.small)
+    
+    table.cell(stats_table, 0, 3, "Bearish", text_color=color.red, text_size=size.small)
+    table.cell(stats_table, 1, 3, str.tostring(bear_count), text_color=color.red, text_size=size.small)
+    
+    table.cell(stats_table, 0, 4, "Total", text_color=color.white, text_size=size.small)
+    table.cell(stats_table, 1, 4, str.tostring(total_count), text_color=color.white, text_size=size.small)
+    
+    // Confidence info
+    table.cell(stats_table, 0, 5, "Min Conf", text_color=color.gray, text_size=size.small)
+    table.cell(stats_table, 1, 5, str.tostring(min_confidence), text_color=color.gray, text_size=size.small)
+
+// ==========================================
+// PLOTTING & VISUALIZATION
+// ==========================================
+
+// Get label size
+lbl_size = label_size == "tiny" ? size.tiny : label_size == "small" ? size.small : label_size == "large" ? size.large : size.normal
+arr_size = arrow_size == "tiny" ? size.tiny : arrow_size == "small" ? size.small : arrow_size == "large" ? size.large : size.normal
+
+// Plot Arrows (using filtered signals)
+// Tiny
+plotshape(show_arrows and arrow_size == "tiny" and buy_signal_filtered, title="Buy Signal Tiny", style=shape.arrowup, location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(show_arrows and arrow_size == "tiny" and sell_signal_filtered, title="Sell Signal Tiny", style=shape.arrowdown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+
+// Small
+plotshape(show_arrows and arrow_size == "small" and buy_signal_filtered, title="Buy Signal Small", style=shape.arrowup, location=location.belowbar, color=color.new(color.green, 0), size=size.small)
+plotshape(show_arrows and arrow_size == "small" and sell_signal_filtered, title="Sell Signal Small", style=shape.arrowdown, location=location.abovebar, color=color.new(color.red, 0), size=size.small)
+
+// Normal
+plotshape(show_arrows and arrow_size == "normal" and buy_signal_filtered, title="Buy Signal Normal", style=shape.arrowup, location=location.belowbar, color=color.new(color.green, 0), size=size.normal)
+plotshape(show_arrows and arrow_size == "normal" and sell_signal_filtered, title="Sell Signal Normal", style=shape.arrowdown, location=location.abovebar, color=color.new(color.red, 0), size=size.normal)
+
+// Large
+plotshape(show_arrows and arrow_size == "large" and buy_signal_filtered, title="Buy Signal Large", style=shape.arrowup, location=location.belowbar, color=color.new(color.green, 0), size=size.large)
+plotshape(show_arrows and arrow_size == "large" and sell_signal_filtered, title="Sell Signal Large", style=shape.arrowdown, location=location.abovebar, color=color.new(color.red, 0), size=size.large)
+
+// Plot Labels with Pattern Names and Confidence
+if show_labels and buy_signal_filtered
+    label_text = show_confidence ? get_pattern_name() + " [" + str.tostring(pattern_confidence) + "]" : get_pattern_name()
+    label.new(bar_index, low, label_text, style=label.style_label_up, color=color.new(color.green, 20), textcolor=color.white, size=lbl_size)
+
+if show_labels and sell_signal_filtered
+    label_text = show_confidence ? get_pattern_name() + " [" + str.tostring(pattern_confidence) + "]" : get_pattern_name()
+    label.new(bar_index, high, label_text, style=label.style_label_down, color=color.new(color.red, 20), textcolor=color.white, size=lbl_size)
+
+// Plot Price Targets
+if show_targets and not na(price_target)
+    if buy_signal_filtered
+        line.new(bar_index, close, bar_index + 10, price_target, color=color.new(color.lime, 30), width=2, style=line.style_dashed)
+        label.new(bar_index + 10, price_target, "Target: " + str.tostring(price_target, format.mintick), 
+                  style=label.style_label_left, color=color.new(color.lime, 30), textcolor=color.white, size=size.small)
+    
+    if sell_signal_filtered
+        line.new(bar_index, close, bar_index + 10, price_target, color=color.new(color.red, 30), width=2, style=line.style_dashed)
+        label.new(bar_index + 10, price_target, "Target: " + str.tostring(price_target, format.mintick), 
+                  style=label.style_label_left, color=color.new(color.red, 30), textcolor=color.white, size=size.small)
+
+// Plot Order Blocks
+if enable_order_blocks and bullish_ob_detected
+    box.new(bar_index - 4, bullish_ob_top, bar_index + 20, bullish_ob_bottom, border_color=color.new(color.green, 70), bgcolor=color.new(color.green, 90), border_width=1, border_style=line.style_dashed)
+
+if enable_order_blocks and bearish_ob_detected
+    box.new(bar_index - 4, bearish_ob_top, bar_index + 20, bearish_ob_bottom, border_color=color.new(color.red, 70), bgcolor=color.new(color.red, 90), border_width=1, border_style=line.style_dashed)
+
+
+// Plot Divergences (moved out of if statement)
+plotshape(enable_divergence and divergence_bull, title="Bullish Divergence", style=shape.diamond, location=location.belowbar, 
+          color=color.new(color.blue, 0), size=size.small, text="DIV")
+plotshape(enable_divergence and divergence_bear, title="Bearish Divergence", style=shape.diamond, location=location.abovebar, 
+          color=color.new(color.orange, 0), size=size.small, text="DIV")
+
+// Plot Smart Money Concepts (moved out of if statement)
+// Liquidity Grabs
+plotshape(enable_smart_money and liquidity_grab_bull, title="Liquidity Grab Bull", style=shape.triangleup, 
+          location=location.belowbar, color=color.new(color.aqua, 0), size=size.tiny, text="LQ")
+plotshape(enable_smart_money and liquidity_grab_bear, title="Liquidity Grab Bear", style=shape.triangledown, 
+          location=location.abovebar, color=color.new(color.fuchsia, 0), size=size.tiny, text="LQ")
+
+// Break of Structure
+plotshape(enable_smart_money and bos_bull, title="BOS Bull", style=shape.square, location=location.belowbar, 
+          color=color.new(color.lime, 30), size=size.tiny, text="BOS")
+plotshape(enable_smart_money and bos_bear, title="BOS Bear", style=shape.square, location=location.abovebar, 
+          color=color.new(color.maroon, 30), size=size.tiny, text="BOS")
+
+// Change of Character
+plotshape(enable_smart_money and choch_bull, title="CHoCH Bull", style=shape.circle, location=location.belowbar, 
+          color=color.new(color.yellow, 30), size=size.tiny, text="CH")
+plotshape(enable_smart_money and choch_bear, title="CHoCH Bear", style=shape.circle, location=location.abovebar, 
+          color=color.new(color.purple, 30), size=size.tiny, text="CH")
+
+// Plot Fair Value Gaps
+if enable_smart_money and bullish_fvg
+    box.new(bar_index - 2, fvg_bull_top, bar_index + 10, fvg_bull_bottom, border_color=color.new(color.green, 80), bgcolor=color.new(color.green, 95), border_width=1, border_style=line.style_dotted)
+
+if enable_smart_money and bearish_fvg
+    box.new(bar_index - 2, fvg_bear_top, bar_index + 10, fvg_bear_bottom, border_color=color.new(color.red, 80), bgcolor=color.new(color.red, 95), border_width=1, border_style=line.style_dotted)
+
+// Ultra Signal markers (special highlighting for maximum confluence)
+if show_labels and ultra_buy_signal
+    label.new(bar_index, low * 0.998, "⚡ULTRA⚡", style=label.style_label_up, color=color.new(color.blue, 0), textcolor=color.yellow, size=size.large, tooltip="Maximum Confluence Signal")
+
+if show_labels and ultra_sell_signal
+    label.new(bar_index, high * 1.002, "⚡ULTRA⚡", style=label.style_label_down, color=color.new(color.orange, 0), textcolor=color.yellow, size=size.large, tooltip="Maximum Confluence Signal")
+
+// Background highlighting for strong signals (confidence 8+) and ultra signals
+bgcolor(ultra_buy_signal ? color.new(color.blue, 85) : buy_signal_filtered and pattern_confidence >= 8 ? color.new(color.green, 90) : na)
+bgcolor(ultra_sell_signal ? color.new(color.orange, 85) : sell_signal_filtered and pattern_confidence >= 8 ? color.new(color.red, 90) : na)
+
+// ==========================================
+// ALERTS
+// ==========================================
+
+// Moved out of if statement - alertcondition must be global
+alertcondition(enable_alerts and buy_signal, title="Bullish Pattern Detected", message="🟢 Bullish Pattern Detected")
+alertcondition(enable_alerts and sell_signal, title="Bearish Pattern Detected", message="🔴 Bearish Pattern Detected")
+
+if enable_alerts and buy_signal
+    alert("🟢 Bullish Pattern: " + syminfo.ticker + " - " + get_pattern_name(), alert.freq_once_per_bar_close)
+
+if enable_alerts and sell_signal
+    alert("🔴 Bearish Pattern: " + syminfo.ticker + " - " + get_pattern_name(), alert.freq_once_per_bar_close)
+
+// Strong pattern alerts
+alertcondition(enable_alerts and pattern_three_white_soldiers, title="Three White Soldiers", message="🟢 STRONG: Three White Soldiers on {{ticker}}")
+alertcondition(enable_alerts and pattern_three_black_crows, title="Three Black Crows", message="🔴 STRONG: Three Black Crows on {{ticker}}")
+alertcondition(enable_alerts and pattern_bullish_engulfing, title="Bullish Engulfing", message="🟢 Bullish Engulfing on {{ticker}}")
+alertcondition(enable_alerts and pattern_bearish_engulfing, title="Bearish Engulfing", message="🔴 Bearish Engulfing on {{ticker}}")
