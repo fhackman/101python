@@ -29,7 +29,7 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip zlib1g-dev libncurses5 libncurses5-dev libbz2-dev openjdk-11-jdk build-essential wget
+          sudo apt-get install -y zip unzip zlib1g-dev libncurses-dev libbz2-dev openjdk-11-jdk build-essential
           python3 -m pip install --upgrade pip
 
       - name: Install Buildozer and dependencies
