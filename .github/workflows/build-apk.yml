@@ -15,16 +15,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          command: buildozer android debug
-          workdir: .
-          buildozer_version: stable
+          python-version: '3.11'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip zlib1g-dev libncurses5 libncurses5-dev libbz2-dev openjdk-11-jdk build-essential
+          python3 -m pip install --upgrade pip
+
+      - name: Install Buildozer and dependencies
+        run: |
+          pip install --upgrade buildozer cython
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: ${{ runner.temp }}/android-sdk
+          ANDROIDSDK: ${{ runner.temp }}/android-sdk
+        run: |
+          mkdir -p "$ANDROID_HOME"
+          buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PA-Scanner-APK
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
