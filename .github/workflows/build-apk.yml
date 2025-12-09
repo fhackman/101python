@@ -29,8 +29,10 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            zip unzip zlib1g-dev libncurses-dev libbz2-dev openjdk-11-jdk build-essential wget
+          sudo apt install -y build-essential ccache libncurses5:i386 
+          libstdc++6:i386 libgtk2.0-0:i386 libpangox-1.0-0:i386 libpangoxft-1.0-0:i386 
+          libidn11:i386 python3-pip python3-venv libffi-dev libssl-dev 
+          autoconf automake cmake libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 openjdk-11-jdk
           python3 -m pip install --upgrade pip
 
       - name: Install Buildozer and dependencies
