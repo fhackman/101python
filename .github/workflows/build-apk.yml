@@ -26,44 +26,58 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zip unzip zlib1g-dev libncurses-dev libbz2-dev openjdk-11-jdk build-essential
-          python3 -m pip install --upgrade pip
+     - name: Install system packages
+  run: |
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends \
+      zip unzip zlib1g-dev libncurses-dev libbz2-dev openjdk-11-jdk build-essential wget
+    python3 -m pip install --upgrade pip
 
-      - name: Install Buildozer and dependencies
-        run: |
-          pip install --upgrade buildozer cython
+- name: Install Buildozer and dependencies
+  run: |
+    pip install --upgrade buildozer cython
 
-      - name: Install Android SDK command line tools and packages
-        env:
-          ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-        run: |
-          set -e
-          mkdir -p "$ANDROID_SDK_ROOT"
-          cd /tmp
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/"* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          export PATH="$ANDROID_SDK_ROOT/platform-tools:$PATH"
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;21.4.7075529" "cmake;3.10.2.4988404"
+- name: Install Android SDK command line tools and packages
+  env:
+    ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+  run: |
+    set -e
+    mkdir -p "$ANDROID_SDK_ROOT"
+    cd /tmp
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+    unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+    mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/"* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
+    export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+    export PATH="$ANDROID_SDK_ROOT/platform-tools:$PATH"
+    yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+    sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;21.4.7075529" "cmake;3.10.2.4988404"
 
-      - name: Export Android env vars
-        env:
-          ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-        run: |
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-          echo "ANDROID_HOME=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-          echo "PATH=${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+- name: Export Android env vars
+  env:
+    ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+  run: |
+    echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
+    echo "ANDROID_HOME=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
+    echo "ANDROIDSDK=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
+    echo "PATH=${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Build APK
-        run: |
-          mkdir -p "$ANDROID_SDK_ROOT"
-          buildozer -v android debug
+- name: Link SDK for Buildozer
+  env:
+    ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+  run: |
+    mkdir -p ~/.buildozer/android/platform
+    ln -sfn "${ANDROID_SDK_ROOT}" ~/.buildozer/android/platform/android-sdk
+    echo "Linked SDK to: $(readlink -f ~/.buildozer/android/platform/android-sdk)"
+    ls -l ~/.buildozer/android/platform/android-sdk/build-tools || true
+    if ! ls ~/.buildozer/android/platform/android-sdk/build-tools/*/aidl >/dev/null 2>&1; then
+      echo "ERROR: aidl not found in build-tools. Check sdkmanager installation." >&2
+      exit 1
+    fi
+
+- name: Build APK
+  run: |
+    buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
