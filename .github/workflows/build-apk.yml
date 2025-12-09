@@ -45,12 +45,19 @@ jobs:
           set -e
           mkdir -p "$ANDROID_SDK_ROOT"
           cd /tmp
+          # Download command line tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
           unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
           mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/"* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          export PATH="$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+          # Create the tools symlink so older scripts / Buildozer find sdkmanager at <sdk>/tools/bin/sdkmanager
+          ln -sfn "$ANDROID_SDK_ROOT/cmdline-tools/latest" "$ANDROID_SDK_ROOT/tools"
+
+          # Ensure sdkmanager is on PATH for this step
+          export PATH="$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+          # Accept licenses and install packages (adjust platform/build-tools/ndk versions if your project requires other versions)
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
           sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;21.4.7075529" "cmake;3.10.2.4988404"
 
@@ -61,7 +68,7 @@ jobs:
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
           echo "ANDROID_HOME=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
           echo "ANDROIDSDK=${ANDROID_SDK_ROOT}" >> $GITHUB_ENV
-          echo "PATH=${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+          echo "PATH=${ANDROID_SDK_ROOT}/tools/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
       - name: Link SDK for Buildozer
         env:
@@ -70,9 +77,10 @@ jobs:
           mkdir -p ~/.buildozer/android/platform
           ln -sfn "${ANDROID_SDK_ROOT}" ~/.buildozer/android/platform/android-sdk
           echo "Linked SDK to: $(readlink -f ~/.buildozer/android/platform/android-sdk)"
-          ls -l ~/.buildozer/android/platform/android-sdk/build-tools || true
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools || true
+          # Quick check: ensure aidl exists in one build-tools version
           if ! ls ~/.buildozer/android/platform/android-sdk/build-tools/*/aidl >/dev/null 2>&1; then
-            echo "ERROR: aidl not found in build-tools. Check sdkmanager installation." >&2
+            echo "ERROR: aidl not found in build-tools. Check sdkmanager installation and build-tools version." >&2
             exit 1
           fi
 
@@ -80,7 +88,6 @@ jobs:
         env:
           ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
         run: |
-          mkdir -p "$ANDROID_SDK_ROOT"
           buildozer -v android debug
 
       - name: Upload APK
